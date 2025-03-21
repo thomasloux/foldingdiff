@@ -467,7 +467,7 @@ def train(
     )
 
     # Get accelerator and distributed strategy
-    accelerator, strategy = "cpu", None
+    accelerator, strategy = "cpu", "auto"
     if not cpu_only and torch.cuda.is_available():
         accelerator = "cuda"
         if torch.cuda.device_count() > 1:
@@ -486,9 +486,9 @@ def train(
         log_every_n_steps=min(200, len(train_dataloader)),  # Log >= once per epoch
         accelerator=accelerator,
         strategy=strategy,
-        gpus=ngpu,
+        devices=ngpu,
         enable_progress_bar=False,
-        move_metrics_to_cpu=False,  # Saves memory
+        # move_metrics_to_cpu=False,  # Saves memory
     )
     trainer.fit(
         model=model,
