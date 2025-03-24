@@ -885,6 +885,16 @@ class NoisedAnglesDataset(Dataset):
             return item
         return retval
 
+class UniformNoisedAnglesDataset(NoisedAnglesDataset):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+    def sample_noise(self, vals: torch.Tensor) -> torch.Tensor:
+        """
+        Sample noise given the values to noise
+        """
+        noise = torch.rand_like(vals) * 2 * np.pi - np.pi
+        return noise
 
 class SingleNoisedAngleDataset(NoisedAnglesDataset):
     """

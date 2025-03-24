@@ -26,7 +26,7 @@ from annot_secondary_structures import make_ss_cooccurrence_plot
 from foldingdiff import modelling
 from foldingdiff import sampling
 from foldingdiff import plotting
-from foldingdiff.datasets import AnglesEmptyDataset, NoisedAnglesDataset
+from foldingdiff.datasets import AnglesEmptyDataset, NoisedAnglesDataset, UniformNoisedAnglesDataset
 from foldingdiff.angles_and_coords import create_new_chain_nerf
 from foldingdiff import utils
 
@@ -47,7 +47,7 @@ FT_NAME_MAP = {
 
 
 def build_datasets(
-    model_dir: Path, load_actual: bool = True
+    model_dir: Path, load_actual: bool = True, initial_distribution: str = "gaussian"
 ) -> Tuple[NoisedAnglesDataset, NoisedAnglesDataset, NoisedAnglesDataset]:
     """
     Build datasets given args again. If load_actual is given, the load the actual datasets
@@ -85,20 +85,38 @@ def build_datasets(
             pad=training_args["max_seq_len"],
             mean_offset=None if not mean_file.exists() else np.load(mean_file),
         )
-        noised_dsets = [
-            NoisedAnglesDataset(
-                dset=placeholder_dset,
-                dset_key="coords"
-                if training_args["angles_definitions"] == "cart-coords"
-                else "angles",
-                timesteps=training_args["timesteps"],
-                exhaustive_t=False,
-                beta_schedule=training_args["variance_schedule"],
-                nonangular_variance=1.0,
-                angular_variance=training_args["variance_scale"],
-            )
-            for _ in range(3)
-        ]
+        if initial_distribution == "gaussian":
+            noised_dsets = [
+                NoisedAnglesDataset(
+                    dset=placeholder_dset,
+                    dset_key="coords"
+                    if training_args["angles_definitions"] == "cart-coords"
+                    else "angles",
+                    timesteps=training_args["timesteps"],
+                    exhaustive_t=False,
+                    beta_schedule=training_args["variance_schedule"],
+                    nonangular_variance=1.0,
+                    angular_variance=training_args["variance_scale"],
+                )
+                for _ in range(3)
+            ]
+        elif initial_distribution == "uniform":
+            noised_dsets = [
+                UniformNoisedAnglesDataset(
+                    dset=placeholder_dset,
+                    dset_key="coords"
+                    if training_args["angles_definitions"] == "cart-coords"
+                    else "angles",
+                    timesteps=training_args["timesteps"],
+                    exhaustive_t=False,
+                    beta_schedule=training_args["variance_schedule"],
+                    nonangular_variance=1.0,
+                    angular_variance=training_args["variance_scale"],
+                )
+                for _ in range(3)
+            ]
+                
+        
         return noised_dsets
 
 
@@ -284,6 +302,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--nopsea", action="store_true", help="Skip PSEA calculations")
     parser.add_argument("--seed", type=int, default=SEED, help="Random seed")
     parser.add_argument("--device", type=str, default="cuda:0", help="Device to use")
+    parser.add_argument("--initial_distribution", type=str, default="gaussian")
     return parser
 
 
@@ -310,9 +329,11 @@ def main() -> None:
     os.makedirs(plotdir, exist_ok=True)
 
     # Load the dataset based on training args
+    print(f"Using initial distribution: {args.initial_distribution}")
     train_dset, _, test_dset = build_datasets(
-        Path(args.model), load_actual=args.testcomparison
+        Path(args.model), load_actual=args.testcomparison, initial_distribution=args.initial_distribution
     )
+    # print(train_dset.sample_noise(torch.zeros(1, 50, 6)))
     phi_idx = test_dset.feature_names["angles"].index("phi")
     psi_idx = test_dset.feature_names["angles"].index("psi")
     # Fetch values for training distribution

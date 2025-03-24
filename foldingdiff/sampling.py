@@ -225,7 +225,7 @@ def sample(
 
 
 def sample_simple(
-    model_dir: str, n: int = 10, sweep_lengths: Tuple[int, int] = (50, 128)
+    model_dir: str, n: int = 10, sweep_lengths: Tuple[int, int] = (50, 128), initial_distribution: str = "gaussian"
 ) -> List[pd.DataFrame]:
     """
     Simple wrapper on sample to automatically load in the model and dummy dataset
@@ -243,15 +243,28 @@ def sample_simple(
         model = model.to("cuda:0")
 
     dummy_dset = dsets.AnglesEmptyDataset.from_dir(model_dir)
-    dummy_noised_dset = dsets.NoisedAnglesDataset(
-        dset=dummy_dset,
-        dset_key="coords" if training_args == "cart-cords" else "angles",
-        timesteps=training_args["timesteps"],
-        exhaustive_t=False,
-        beta_schedule=training_args["variance_schedule"],
-        nonangular_variance=1.0,
-        angular_variance=training_args["variance_scale"],
-    )
+    if initial_distribution == "gaussian":
+        dummy_noised_dset = dsets.NoisedAnglesDataset(
+            dset=dummy_dset,
+            dset_key="coords" if training_args == "cart-cords" else "angles",
+            timesteps=training_args["timesteps"],
+            exhaustive_t=False,
+            beta_schedule=training_args["variance_schedule"],
+            nonangular_variance=1.0,
+            angular_variance=training_args["variance_scale"],
+        )
+    elif initial_distribution == "uniform":
+        dummy_noised_dset = dsets.UniformNoisedAnglesDataset(
+            dset=dummy_dset,
+            dset_key="coords" if training_args == "cart-cords" else "angles",
+            timesteps=training_args["timesteps"],
+            exhaustive_t=False,
+            beta_schedule=training_args["variance_schedule"],
+            nonangular_variance=1.0,
+            angular_variance=training_args["variance_scale"],
+        )
+    else:
+        raise ValueError(f"Unknown initial distribution {initial_distribution}")
 
     sampled = sample(
         model, dummy_noised_dset, n=n, sweep_lengths=sweep_lengths, disable_pbar=True
@@ -357,6 +370,10 @@ def get_reconstruction_error(
 
 
 if __name__ == "__main__":
+    # import argparse
+    # args = argparse.ArgumentParser()
+    # args.add_argument("--initial_distribution", type=str)
+
     logging.basicConfig(level=logging.INFO)
     s = sample_simple("wukevin/foldingdiff_cath", n=1, sweep_lengths=(50, 51))
     for i, x in enumerate(s):
